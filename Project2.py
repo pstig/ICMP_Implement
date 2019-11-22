@@ -11,7 +11,7 @@ import socket
 ICMP_ECHO_REQUEST = 8
 MAX_HOPS = 30
 TIMEOUT = 2.0
-TRIES = 2
+TRIES = 1
 
 # The packet that we shall send to each router along the path is the ICMP echo
 # request packet, which is exactly what we had used in the ICMP ping exercise.
@@ -62,55 +62,77 @@ def get_route(hostname):
     timeLeft = TIMEOUT
     for ttl in range(1,MAX_HOPS):
         for tries in range(TRIES):
-            destAddr = gethostbyname(hostname)
+            destAddr = socket.gethostbyname(hostname)
 
             #Fill in start
             # Make a raw socket named mySocket
-            icmp = socket.getprotobyname("ICMP")
-            mySocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, icmp)
-            # mySocket.bind(('', 5678))
+            ICMP = socket.getprotobyname('icmp')
+            mySocket = socket.socket(socket.AF_INET, socket.SOCK_RAW, ICMP)
+            mySocket.bind(('', 5678))
             #Fill in end
             mySocket.setsockopt(IPPROTO_IP, IP_TTL, struct.pack('I', ttl))
             mySocket.settimeout(TIMEOUT)
             try:
                 d = build_packet()
                 mySocket.sendto(d, (hostname, 0))
-                t= time.time
+                t= time.time()
                 startedSelect = time.time()
                 whatReady = select.select([mySocket], [], [], timeLeft)
                 howLongInSelect = (time.time() - startedSelect)
+
                 if whatReady[0] == []: # Timeout
                     print(" * * * Request timed out.")
+
                 recvPacket, addr = mySocket.recvfrom(1024)
                 timeReceived = time.time()
                 timeLeft = timeLeft - howLongInSelect
+
                 if timeLeft <= 0:
                     print(" * * * Request timed out.")
-            except timeout:
+
+            except socket.timeout:
                 continue
+
             else:
                 #Fill in start
                 #Fetch the icmp type from the IP packet
                 icmpHead = recvPacket[20:28]
-                request_type, code, checksum, packetID, sequence = struct.unpack("bbHHh", icmpHead)
+                types, code, checks, packetID, sequence = struct.unpack("bbHHh", icmpHead)
                 #Fill in end
                 if types == 11:
                     bytes = struct.calcsize("d")
                     timeSent = struct.unpack("d", recvPacket[28:28 + bytes])[0]
-                    print(" %d rtt=%.0f ms %s" %(ttl,(timeReceived -t)*1000, addr[0]))
+                    print(" %d rtt=%.0f ms %s -- %s" %(ttl,(timeReceived -t)*1000, addr[0], socket.getfqdn(addr[0])))
                 elif types == 3:
                     bytes = struct.calcsize("d")
                     timeSent = struct.unpack("d", recvPacket[28:28 + bytes])[0]
-                    print(" %d rtt=%.0f ms %s" %(ttl, (timeReceived-t)*1000, addr[0]))
+                    print(" %d rtt=%.0f ms %s -- %s" %(ttl,(timeReceived -t)*1000, addr[0], socket.getfqdn(addr[0])))
                 elif types == 0:
                     bytes = struct.calcsize("d")
                     timeSent = struct.unpack("d", recvPacket[28:28 + bytes])[0]
-                    print(" %d rtt=%.0f ms %s" %(ttl, (timeReceived - timeSent)*1000, addr[0]))
+                    print(" %d rtt=%.0f ms %s -- %s" %(ttl,(timeReceived -t)*1000, addr[0], socket.getfqdn(addr[0])))
                     return
                 else:
                     print("error")
-                break
+                    break
             finally:
                 mySocket.close()
-get_route("google.com")
-input('Press Enter to exit')
+print('****************************************************')
+print('                  hulu.com')
+print('****************************************************')
+get_route("hulu.com")
+
+print('****************************************************')
+print('                  blackboard.com')
+print('****************************************************')
+get_route("blackboard.com")
+
+print('****************************************************')
+print('                  twitch.tv')
+print('****************************************************')
+get_route("twitch.tv")
+
+print('****************************************************')
+print('                  mybama.com')
+print('****************************************************')
+get_route("mybama.com")
